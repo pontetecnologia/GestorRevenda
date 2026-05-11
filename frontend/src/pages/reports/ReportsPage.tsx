@@ -1,0 +1,391 @@
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import {
+  AreaChart, Area, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+} from 'recharts'
+import { BarChart3, TrendingUp, Users, AlertCircle } from 'lucide-react'
+import api from '../../services/api'
+import { Loading, ErrorMsg, Empty, Currency } from '../../components/ui'
+import clsx from 'clsx'
+
+type ReportTab = 'saas' | 'abc' | 'profitability' | 'cancellations' | 'general'
+
+const TABS: { id: ReportTab; label: string }[] = [
+  { id: 'saas', label: 'Indicadores SaaS' },
+  { id: 'abc', label: 'Curva ABC' },
+  { id: 'profitability', label: 'Lucratividade' },
+  { id: 'cancellations', label: 'Cancelamentos' },
+  { id: 'general', label: 'Análise Geral' },
+]
+
+const tooltipStyle = {
+  backgroundColor: '#1e293b',
+  border: '1px solid #334155',
+  borderRadius: '8px',
+  color: '#f1f5f9',
+  fontSize: '12px',
+}
+
+const fmtBrl = (v: number) =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
+
+function KPI({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
+  return (
+    <div className="stat-card">
+      <p className="stat-label">{label}</p>
+      <p className={clsx('stat-value mt-1', color)}>{value}</p>
+      {sub && <p className="stat-sub mt-0.5">{sub}</p>}
+    </div>
+  )
+}
+
+// ---- SaaS Indicators ----
+function SaasReport() {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['report-saas'],
+    queryFn: () => api.get('/reports/saas').then(r => r.data),
+  })
+
+  if (isLoading) return <Loading />
+  if (error || !data) return <ErrorMsg message="Erro ao carregar relatório" />
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <KPI label="MRR" value={fmtBrl(data.mrr)} sub="Receita Mensal Recorrente" color="text-green-400" />
+        <KPI label="ARR" value={fmtBrl(data.arr)} sub="Receita Anual Projetada" />
+        <KPI label="Contratos Ativos" value={String(data.contratosAtivos)} />
+        <KPI label="Ticket Médio" value={fmtBrl(data.ticketMedio)} />
+        <KPI label="Novos (30d)" value={String(data.novosUltimos30)} color="text-green-400" />
+        <KPI label="Cancelamentos Reais" value={String(data.canceladosReais)} color="text-red-400" />
+        <KPI label="Churn Rate" value={`${data.churnRate.toFixed(1)}%`} color={data.churnRate > 5 ? 'text-red-400' : 'text-green-400'} />
+      </div>
+
+      {data.mrrEvolucao?.length > 0 && (
+        <div className="card">
+          <h3 className="text-sm font-semibold text-slate-300 mb-4">Evolução do MRR (12 meses)</h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart data={data.mrrEvolucao}>
+              <defs>
+                <linearGradient id="mrrGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+              <XAxis dataKey="label" tick={{ fill: '#94a3b8', fontSize: 11 }} />
+              <YAxis tickFormatter={v => `R$${(v/1000).toFixed(0)}k`} tick={{ fill: '#94a3b8', fontSize: 11 }} />
+              <Tooltip contentStyle={tooltipStyle} formatter={(v: any) => fmtBrl(v)} />
+              <Area type="monotone" dataKey="mrr" name="MRR" stroke="#22c55e" strokeWidth={2} fill="url(#mrrGrad)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---- ABC Curve ----
+function AbcReport() {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['report-abc'],
+    queryFn: () => api.get('/reports/abc').then(r => r.data),
+  })
+
+  if (isLoading) return <Loading />
+  if (error || !data) return <ErrorMsg message="Erro ao carregar relatório" />
+
+  const classBadge: Record<string, string> = {
+    A: 'bg-green-900/40 text-green-400 border border-green-700/30',
+    B: 'bg-blue-900/40 text-blue-400 border border-blue-700/30',
+    C: 'bg-slate-700/40 text-slate-400 border border-slate-600/30',
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-3 gap-4">
+        <div className="stat-card border-green-700/30">
+          <p className="stat-label">Classe A</p>
+          <p className="stat-value text-green-400">{data.resumo.classeA}</p>
+          <p className="stat-sub">Até 80% da receita</p>
+        </div>
+        <div className="stat-card border-blue-700/30">
+          <p className="stat-label">Classe B</p>
+          <p className="stat-value text-blue-400">{data.resumo.classeB}</p>
+          <p className="stat-sub">80% a 95%</p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-label">Classe C</p>
+          <p className="stat-value">{data.resumo.classeC}</p>
+          <p className="stat-sub">Acima de 95%</p>
+        </div>
+      </div>
+
+      <div className="card p-0 overflow-hidden">
+        <div className="table-container">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Cliente</th>
+                <th>CNPJ</th>
+                <th>Receita</th>
+                <th>Participação</th>
+                <th>Acumulado</th>
+                <th>Classe</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.clientes.map((c: any, i: number) => (
+                <tr key={c.id}>
+                  <td className="text-slate-500">{i + 1}</td>
+                  <td className="font-medium text-slate-200 max-w-[200px] truncate">{c.cliente}</td>
+                  <td className="font-mono text-xs text-slate-400">{c.cpfCnpj}</td>
+                  <td><Currency value={c.receita} /></td>
+                  <td>{c.participacao.toFixed(2)}%</td>
+                  <td>{c.participacaoAcumulada.toFixed(2)}%</td>
+                  <td>
+                    <span className={clsx('badge', classBadge[c.classe])}>
+                      {c.classe}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---- Profitability ----
+function ProfitabilityReport() {
+  const [orderBy, setOrderBy] = useState('margem')
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['report-profit', orderBy],
+    queryFn: () => api.get(`/reports/profitability?orderBy=${orderBy}`).then(r => r.data),
+  })
+
+  if (isLoading) return <Loading />
+  if (error || !data) return <ErrorMsg message="Erro ao carregar relatório" />
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <KPI label="Receita Total" value={fmtBrl(data.resumo.totalReceita)} color="text-green-400" />
+        <KPI label="Custo Total" value={fmtBrl(data.resumo.totalCusto)} color="text-red-400" />
+        <KPI label="Margem Líquida" value={fmtBrl(data.resumo.totalMargem)} color={data.resumo.totalMargem >= 0 ? 'text-green-400' : 'text-red-400'} />
+        <KPI label="Margem %" value={`${data.resumo.totalMargemPct.toFixed(1)}%`} />
+      </div>
+
+      {/* Top 5 */}
+      <div className="card">
+        <h3 className="text-sm font-semibold text-slate-300 mb-4">🏆 Top 5 Mais Lucrativos</h3>
+        <div className="space-y-3">
+          {data.top5.map((c: any, i: number) => (
+            <div key={c.id} className="flex items-center gap-3">
+              <span className="text-2xl font-bold text-slate-600 w-8">{i + 1}</span>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-slate-200 truncate">{c.cliente}</p>
+                <p className="text-xs text-slate-500">{c.cpfCnpj}</p>
+              </div>
+              <div className="text-right">
+                <p className={clsx('font-bold', c.margem >= 0 ? 'text-green-400' : 'text-red-400')}>
+                  {fmtBrl(c.margem)}
+                </p>
+                <p className="text-xs text-slate-500">{c.margemPct.toFixed(1)}%</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Ranking completo */}
+      <div className="card p-0 overflow-hidden">
+        <div className="flex items-center justify-between px-4 pt-4 pb-2">
+          <h3 className="text-sm font-semibold text-slate-300">Ranking Completo</h3>
+          <select className="select w-auto text-xs" value={orderBy} onChange={e => setOrderBy(e.target.value)}>
+            <option value="margem">Maior Margem R$</option>
+            <option value="margem_pct">Maior Margem %</option>
+            <option value="receita">Maior Receita</option>
+            <option value="custo">Maior Custo</option>
+          </select>
+        </div>
+        <div className="table-container">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Cliente</th>
+                <th>CNPJ</th>
+                <th>Venda</th>
+                <th>Custo</th>
+                <th>Margem R$</th>
+                <th>Margem %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.ranking.map((c: any) => (
+                <tr key={c.id}>
+                  <td className="text-slate-500">{c.posicao}</td>
+                  <td className="font-medium max-w-[160px] truncate">{c.cliente}</td>
+                  <td className="font-mono text-xs text-slate-400">{c.cpfCnpj}</td>
+                  <td><Currency value={c.receita} /></td>
+                  <td><Currency value={c.custo} /></td>
+                  <td><Currency value={c.margem} colored /></td>
+                  <td className={c.margemPct >= 0 ? 'text-green-400' : 'text-red-400'}>
+                    {c.margemPct.toFixed(1)}%
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---- Cancellations ----
+function CancellationsReport() {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['report-cancellations'],
+    queryFn: () => api.get('/reports/cancellations').then(r => r.data),
+  })
+
+  if (isLoading) return <Loading />
+  if (error || !data) return <ErrorMsg message="Erro ao carregar relatório" />
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <KPI label="Cancelados Reais" value={String(data.totalCancelados)} color="text-red-400" />
+        <KPI label="Migrados" value={String(data.totalMigrados)} color="text-blue-400" />
+        <KPI label="Receita Perdida" value={fmtBrl(data.receitaPerdida)} color="text-red-400" />
+        <KPI label="Custo Eliminado" value={fmtBrl(data.custosEliminados)} color="text-green-400" />
+      </div>
+
+      {data.cancelados?.length > 0 && (
+        <div className="card p-0 overflow-hidden">
+          <div className="px-4 pt-4 pb-2">
+            <h3 className="text-sm font-semibold text-slate-300">Contratos Cancelados</h3>
+          </div>
+          <div className="table-container">
+            <table className="table">
+              <thead><tr><th>Cliente</th><th>CNPJ</th><th>Data Encerramento</th></tr></thead>
+              <tbody>
+                {data.cancelados.map((c: any) => (
+                  <tr key={c.id}>
+                    <td className="font-medium">{c.cliente}</td>
+                    <td className="font-mono text-xs text-slate-400">{c.cpfCnpj}</td>
+                    <td>{c.dataEncerramento ? new Date(c.dataEncerramento).toLocaleDateString('pt-BR') : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---- General ----
+function GeneralReport() {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['report-general'],
+    queryFn: () => api.get('/reports/general').then(r => r.data),
+  })
+
+  if (isLoading) return <Loading />
+  if (error || !data) return <ErrorMsg message="Erro ao carregar relatório" />
+
+  const alertas = [
+    { label: 'Sem Valor de Venda', count: data.alertas.semValorVenda, color: 'text-yellow-400', list: data.semValorVendaLista },
+    { label: 'Margem Negativa', count: data.alertas.margemNegativa, color: 'text-red-400', list: data.margemNegativaLista },
+    { label: 'Em Risco de Bloqueio', count: data.alertas.emRiscoBloqueio, color: 'text-orange-400', list: data.emRiscoBloqueioLista },
+    { label: 'Bloqueados', count: data.alertas.contratosBloqueados, color: 'text-red-400', list: [] },
+    { label: 'Sem Servidor (Web)', count: data.alertas.semServidor, color: 'text-yellow-400', list: [] },
+  ]
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        <KPI label="Contratos Ativos" value={String(data.totalAtivos)} />
+        <KPI label="Receita Total" value={fmtBrl(data.totalReceita)} color="text-green-400" />
+        <KPI label="Ticket Médio" value={fmtBrl(data.ticketMedio)} />
+      </div>
+
+      <div>
+        <p className="section-title flex items-center gap-2">
+          <AlertCircle size={14} />
+          Alertas e Pendências
+        </p>
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+          {alertas.map((a, i) => (
+            <div key={i} className="stat-card">
+              <p className="stat-label">{a.label}</p>
+              <p className={clsx('stat-value mt-1', a.color)}>{a.count}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {data.emRiscoBloqueioLista?.length > 0 && (
+        <div className="card">
+          <h3 className="text-sm font-semibold text-slate-300 mb-3">⚠ Em Risco de Bloqueio (próximos 7 dias)</h3>
+          <div className="space-y-2">
+            {data.emRiscoBloqueioLista.map((c: any) => (
+              <div key={c.id} className="flex items-center justify-between p-2 bg-orange-900/10 border border-orange-700/20 rounded-lg text-sm">
+                <span className="text-slate-200">{c.cliente}</span>
+                <span className="text-orange-400 font-medium">{c.diasParaBloqueio} dias</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---- Main ----
+export default function ReportsPage() {
+  const [tab, setTab] = useState<ReportTab>('saas')
+
+  const renderTab = () => {
+    switch (tab) {
+      case 'saas': return <SaasReport />
+      case 'abc': return <AbcReport />
+      case 'profitability': return <ProfitabilityReport />
+      case 'cancellations': return <CancellationsReport />
+      case 'general': return <GeneralReport />
+    }
+  }
+
+  return (
+    <div>
+      <div className="page-header">
+        <h1 className="page-title">Relatórios & Análises</h1>
+        <p className="page-subtitle">Inteligência de dados da sua revenda</p>
+      </div>
+
+      <div className="tabs-container overflow-x-auto">
+        {TABS.map(t => (
+          <button
+            key={t.id}
+            className={tab === t.id ? 'tab-active' : 'tab'}
+            onClick={() => setTab(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="animate-fade-in">
+        {renderTab()}
+      </div>
+    </div>
+  )
+}

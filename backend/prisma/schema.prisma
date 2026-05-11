@@ -1,0 +1,255 @@
+// RevendaHub - Prisma Schema
+// PostgreSQL + Prisma ORM
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  SUPPORT
+  MANAGER
+  ADMIN
+}
+
+enum ServerStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum BlockHistoryAction {
+  BLOCK
+  UNBLOCK
+  STATUS_CHANGE
+}
+
+enum SyncStatus {
+  SUCCESS
+  PARTIAL
+  ERROR
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         UserRole @default(SUPPORT)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  contractFinancials   ContractFinancial[]
+  contractMigrations   ContractMigration[]   @relation("MigrationCreatedBy")
+  contractAccessLogs   ContractAccessLog[]
+  blockHistories       ContractBlockHistory[]
+  @@map("users")
+}
+
+model Contract {
+  id                 String    @id @default(uuid())
+  cpfCnpj            String
+  cpfCnpjDigits      String
+  clienteFinal       String
+  idStatus           Int
+  status             String
+  descricaoStatus    String
+  versaoSistema      String    @default("")
+  valortotal         Decimal   @default(0) @db.Decimal(10, 2)
+  dataCriacao        DateTime?
+  usuarios           Int       @default(0)
+  build              String    @default("")
+  ultimoAcessoWs     DateTime?
+  diasParaEncerrar   Int       @default(0)
+  dataEncerramento   DateTime?
+  databloqueio       DateTime?
+  dataMigracao       DateTime?
+  diasBloqueado      Int       @default(0)
+  diasParaBloqueio   Int       @default(0)
+  tipoLicenciamento  String    @default("")
+  tipoContrato       String    @default("")
+  tenant             String?
+  webAccessUrl       String?
+  directAccessUrl    String?
+  lastSyncedAt       DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  financial        ContractFinancial?
+  migrations       ContractMigration[]  @relation("NewContract")
+  oldMigrations    ContractMigration[]  @relation("OldContract")
+  accessLogs       ContractAccessLog[]
+  blockHistory     ContractBlockHistory[]
+  accessData       ContractAccessData[]
+  contractServers  ContractServer[]
+
+  @@index([cpfCnpj])
+  @@index([idStatus])
+  @@index([tipoContrato])
+  @@map("contracts")
+}
+
+model ContractFinancial {
+  id                    String   @id @default(uuid())
+  contractId            String   @unique
+  valorCustoIntelidata  Decimal  @default(0) @db.Decimal(10, 2)
+  valorVenda            Decimal  @default(0) @db.Decimal(10, 2)
+  valorVendaTef         Decimal  @default(0) @db.Decimal(10, 2)
+  valorVendaServidor    Decimal  @default(0) @db.Decimal(10, 2)
+  outrasReceitas        Decimal  @default(0) @db.Decimal(10, 2)
+  custoTef              Decimal  @default(0) @db.Decimal(10, 2)
+  custoUniplus          Decimal  @default(0) @db.Decimal(10, 2)
+  custoServidor         Decimal  @default(0) @db.Decimal(10, 2)
+  outrosCustos          Decimal  @default(0) @db.Decimal(10, 2)
+  valorLiquido          Decimal  @default(0) @db.Decimal(10, 2)
+  margemValor           Decimal  @default(0) @db.Decimal(10, 2)
+  margemPercentual      Decimal  @default(0) @db.Decimal(5, 2)
+  observacao            String?
+  updatedByUserId       String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  contract      Contract @relation(fields: [contractId], references: [id])
+  updatedByUser User?    @relation(fields: [updatedByUserId], references: [id])
+
+  @@map("contract_financials")
+}
+
+model ContractMigration {
+  id             String    @id @default(uuid())
+  oldContractId  String
+  newContractId  String
+  motivoMigracao String?
+  dataMigracao   DateTime?
+  createdByUserId String
+  createdAt      DateTime  @default(now())
+
+  oldContract    Contract  @relation("OldContract", fields: [oldContractId], references: [id])
+  newContract    Contract  @relation("NewContract", fields: [newContractId], references: [id])
+  createdByUser  User      @relation("MigrationCreatedBy", fields: [createdByUserId], references: [id])
+
+  @@map("contract_migrations")
+}
+
+model ContractAccessLog {
+  id         String   @id @default(uuid())
+  contractId String
+  userId     String
+  action     String   @default("WEB_ACCESS")
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  contract Contract @relation(fields: [contractId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@index([contractId])
+  @@map("contract_access_logs")
+}
+
+model ContractBlockHistory {
+  id              String             @id @default(uuid())
+  contractId      String
+  action          BlockHistoryAction
+  oldStatus       String?
+  newStatus       String?
+  description     String?
+  createdByUserId String?
+  createdAt       DateTime           @default(now())
+
+  contract      Contract @relation(fields: [contractId], references: [id])
+  createdByUser User?    @relation(fields: [createdByUserId], references: [id])
+
+  @@map("contract_block_history")
+}
+
+model ContractAccessData {
+  id           String   @id @default(uuid())
+  contractId   String
+  externalId   String?
+  computerName String?
+  description  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  contract Contract @relation(fields: [contractId], references: [id])
+
+  @@map("contract_access_data")
+}
+
+model Server {
+  id             String       @id @default(uuid())
+  name           String
+  url            String?
+  publicIp       String?
+  ramGb          Int          @default(0)
+  vcpu           Int          @default(0)
+  storageGb      Int          @default(0)
+  monthlyCost    Decimal      @default(0) @db.Decimal(10, 2)
+  monthlyRevenue Decimal      @default(0) @db.Decimal(10, 2)
+  status         ServerStatus @default(ACTIVE)
+  observation    String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  contractServers ContractServer[]
+
+  @@map("servers")
+}
+
+model ContractServer {
+  id         String   @id @default(uuid())
+  contractId String
+  serverId   String
+  createdAt  DateTime @default(now())
+
+  contract Contract @relation(fields: [contractId], references: [id])
+  server   Server   @relation(fields: [serverId], references: [id])
+
+  @@unique([contractId, serverId])
+  @@map("contract_servers")
+}
+
+model Goal {
+  id                          String   @id @default(uuid())
+  desiredActiveContracts      Int      @default(0)
+  desiredIntelidataCostValue  Decimal  @default(0) @db.Decimal(10, 2)
+  desiredSalesValue           Decimal  @default(0) @db.Decimal(10, 2)
+  year                        Int
+  month                       Int
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  @@unique([year, month])
+  @@map("goals")
+}
+
+model AppSetting {
+  id             String   @id @default(uuid())
+  key            String   @unique
+  valueEncrypted String
+  description    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("app_settings")
+}
+
+model SyncLog {
+  id             String     @id @default(uuid())
+  source         String
+  status         SyncStatus
+  totalReceived  Int        @default(0)
+  totalCreated   Int        @default(0)
+  totalUpdated   Int        @default(0)
+  errorMessage   String?
+  startedAt      DateTime
+  finishedAt     DateTime?
+  createdAt      DateTime   @default(now())
+
+  @@map("sync_logs")
+}
