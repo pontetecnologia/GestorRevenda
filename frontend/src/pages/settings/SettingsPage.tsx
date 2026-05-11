@@ -405,7 +405,12 @@ function UsersTab() {
           </div>
           <div className="flex gap-3 justify-end">
             <button className="btn-ghost" onClick={() => setModalOpen(false)}>Cancelar</button>
-            <button className="btn-primary" onClick={() => createUser.mutate(form)} disabled={createUser.isPending}>
+            <button className="btn-primary" onClick={() => {
+              const payload = editingId
+                ? { name: form.name, email: form.email, role: form.role } // sem password
+                : form
+              createUser.mutate(payload)
+            }} disabled={createUser.isPending}>
               {editingId ? 'Salvar' : 'Criar'}
             </button>
           </div>

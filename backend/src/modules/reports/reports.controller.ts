@@ -29,6 +29,9 @@ export class ReportsController {
     return this.reportsService.getCancellations(startDate, endDate);
   }
 
+  @Get('receitas-custos')
+  getReceitasCustos() { return this.reportsService.getReceitasCustosPorTipo(); }
+
   @Get('general')
   getGeneral() { return this.reportsService.getGeneral(); }
 }

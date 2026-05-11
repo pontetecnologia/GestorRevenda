@@ -245,15 +245,19 @@ export default function ContractsPage() {
                   <th>Tipo</th>
                   <th>Versão</th>
                   {!isSupport && <th>Custo Lic.</th>}
-                  {!isSupport && <th>Venda</th>}
+                  {!isSupport && <th>Receita Total</th>}
                   <th>Usuários</th>
                   <th>Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {contracts.map((c: any) => {
-                  const valorVenda = c.financial?.valorVenda
-                    ? Number(c.financial.valorVenda)
+                  // Receita total = soma de todos os campos de receita
+                  const valorVenda = c.financial
+                    ? Number(c.financial.valorVenda || 0) +
+                      Number(c.financial.valorVendaTef || 0) +
+                      Number(c.financial.valorVendaServidor || 0) +
+                      Number(c.financial.outrasReceitas || 0)
                     : 0
                   const valorCusto = Number(c.valortotal)
 

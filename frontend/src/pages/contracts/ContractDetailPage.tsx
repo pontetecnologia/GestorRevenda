@@ -1244,7 +1244,7 @@ export default function ContractDetailPage() {
 
       {/* Tab: Dados Técnicos */}
       {tab === 'tecnico' && (
-        <TechDataTab contractId={id!} canEdit={can(['MANAGER', 'ADMIN'])} />
+        <TechDataTab contractId={id!} canEdit={can(['MANAGER', 'ADMIN']) || isSupport} />
       )}
     </div>
   )

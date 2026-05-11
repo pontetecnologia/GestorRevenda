@@ -9,10 +9,11 @@ import api from '../../services/api'
 import { Loading, ErrorMsg, Empty, Currency } from '../../components/ui'
 import clsx from 'clsx'
 
-type ReportTab = 'saas' | 'abc' | 'profitability' | 'cancellations' | 'general'
+type ReportTab = 'saas' | 'abc' | 'profitability' | 'cancellations' | 'general' | 'receitas'
 
 const TABS: { id: ReportTab; label: string }[] = [
   { id: 'saas', label: 'Indicadores SaaS' },
+  { id: 'receitas', label: 'Receitas & Custos' },
   { id: 'abc', label: 'Curva ABC' },
   { id: 'profitability', label: 'Lucratividade' },
   { id: 'cancellations', label: 'Cancelamentos' },
@@ -36,6 +37,156 @@ function KPI({ label, value, sub, color }: { label: string; value: string; sub?:
       <p className="stat-label">{label}</p>
       <p className={clsx('stat-value mt-1', color)}>{value}</p>
       {sub && <p className="stat-sub mt-0.5">{sub}</p>}
+    </div>
+  )
+}
+
+// ---- Receitas & Custos por Tipo ----
+function ReceitasCustosReport() {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['report-receitas-custos'],
+    queryFn: () => api.get('/reports/receitas-custos').then(r => r.data),
+  })
+
+  if (isLoading) return <Loading />
+  if (error || !data) return <ErrorMsg message="Erro ao carregar relatório" />
+
+  const { linhas, totais, totalContratos } = data
+
+  const colClass = 'px-3 py-2.5 text-right text-sm'
+  const colHead  = 'px-3 py-2 text-right text-xs font-medium text-slate-400 uppercase tracking-wide whitespace-nowrap'
+
+  return (
+    <div className="space-y-4">
+      {/* Cards de totais */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="stat-card border-green-700/30">
+          <p className="stat-label">Total Receita</p>
+          <p className="stat-value text-green-400">{fmtBrl(totais.totalReceita)}</p>
+          <p className="stat-sub">{totalContratos} contratos ativos</p>
+        </div>
+        <div className="stat-card border-red-700/30">
+          <p className="stat-label">Total Custo</p>
+          <p className="stat-value text-red-400">{fmtBrl(totais.totalCusto)}</p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-label">Resultado Líquido</p>
+          <p className={clsx('stat-value', totais.liquido >= 0 ? 'text-green-400' : 'text-red-400')}>
+            {fmtBrl(totais.liquido)}
+          </p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-label">Margem Geral</p>
+          <p className={clsx('stat-value', totais.margem >= 0 ? 'text-green-400' : 'text-red-400')}>
+            {totais.margem.toFixed(1)}%
+          </p>
+        </div>
+      </div>
+
+      {/* Totais por categoria */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Licenças (Venda)', value: totais.valorVenda, color: 'text-blue-400' },
+          { label: 'TEF', value: totais.valorTef, color: 'text-purple-400' },
+          { label: 'Servidor', value: totais.valorServidor, color: 'text-cyan-400' },
+          { label: 'Outras Receitas', value: totais.outrasReceitas, color: 'text-yellow-400' },
+        ].map((item, i) => (
+          <div key={i} className="card py-3">
+            <p className="stat-label">{item.label}</p>
+            <p className={clsx('text-lg font-bold mt-1', item.color)}>{fmtBrl(item.value)}</p>
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Custo Intelidata', value: totais.custoIntelidata, color: 'text-orange-400' },
+          { label: 'Custo TEF', value: totais.custoTef, color: 'text-orange-300' },
+          { label: 'Custo Servidor', value: totais.custoServidor, color: 'text-orange-200' },
+          { label: 'Outros Custos', value: totais.outrosCustos, color: 'text-slate-400' },
+        ].map((item, i) => (
+          <div key={i} className="card py-3">
+            <p className="stat-label">{item.label}</p>
+            <p className={clsx('text-lg font-bold mt-1', item.color)}>{fmtBrl(item.value)}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Tabela detalhada */}
+      <div className="card p-0 overflow-hidden">
+        <div className="px-4 pt-4 pb-2">
+          <h3 className="text-sm font-semibold text-slate-300">Detalhamento por Contrato</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-700">
+                <th className="px-4 py-2 text-left text-xs font-medium text-slate-400 uppercase">Cliente</th>
+                {/* Receitas */}
+                <th className={colHead}>Licenças</th>
+                <th className={colHead}>TEF</th>
+                <th className={colHead}>Servidor</th>
+                <th className={colHead}>Outras Rec.</th>
+                <th className={clsx(colHead, 'text-green-400')}>Total Rec.</th>
+                {/* Custos */}
+                <th className={colHead}>Custo Intelidata</th>
+                <th className={colHead}>Custo TEF</th>
+                <th className={colHead}>Custo Serv.</th>
+                <th className={colHead}>Outros Cust.</th>
+                <th className={clsx(colHead, 'text-red-400')}>Total Cust.</th>
+                {/* Resultado */}
+                <th className={colHead}>Líquido</th>
+                <th className={colHead}>Margem</th>
+              </tr>
+            </thead>
+            <tbody>
+              {linhas.map((l: any) => (
+                <tr key={l.id} className="border-b border-slate-800 hover:bg-slate-800/40">
+                  <td className="px-4 py-2.5">
+                    <p className="font-medium text-slate-200 truncate max-w-[160px]">{l.cliente}</p>
+                    <p className="text-xs text-slate-500 font-mono">{l.cpfCnpj}</p>
+                  </td>
+                  <td className={colClass}>{fmtBrl(l.valorVenda)}</td>
+                  <td className={colClass}>{fmtBrl(l.valorTef)}</td>
+                  <td className={colClass}>{fmtBrl(l.valorServidor)}</td>
+                  <td className={colClass}>{fmtBrl(l.outrasReceitas)}</td>
+                  <td className={clsx(colClass, 'font-semibold text-green-400')}>{fmtBrl(l.totalReceita)}</td>
+                  <td className={colClass}>{fmtBrl(l.custoIntelidata)}</td>
+                  <td className={colClass}>{fmtBrl(l.custoTef)}</td>
+                  <td className={colClass}>{fmtBrl(l.custoServidor)}</td>
+                  <td className={colClass}>{fmtBrl(l.outrosCustos)}</td>
+                  <td className={clsx(colClass, 'font-semibold text-red-400')}>{fmtBrl(l.totalCusto)}</td>
+                  <td className={clsx(colClass, 'font-semibold', l.liquido >= 0 ? 'text-green-400' : 'text-red-400')}>
+                    {fmtBrl(l.liquido)}
+                  </td>
+                  <td className={clsx(colClass, l.margem >= 0 ? 'text-green-400' : 'text-red-400')}>
+                    {l.margem.toFixed(1)}%
+                  </td>
+                </tr>
+              ))}
+              {/* Linha de totais */}
+              <tr className="border-t-2 border-slate-600 bg-slate-800/60 font-bold">
+                <td className="px-4 py-3 text-slate-200 text-sm">TOTAL ({totalContratos} contratos)</td>
+                <td className={colClass}>{fmtBrl(totais.valorVenda)}</td>
+                <td className={colClass}>{fmtBrl(totais.valorTef)}</td>
+                <td className={colClass}>{fmtBrl(totais.valorServidor)}</td>
+                <td className={colClass}>{fmtBrl(totais.outrasReceitas)}</td>
+                <td className={clsx(colClass, 'text-green-400')}>{fmtBrl(totais.totalReceita)}</td>
+                <td className={colClass}>{fmtBrl(totais.custoIntelidata)}</td>
+                <td className={colClass}>{fmtBrl(totais.custoTef)}</td>
+                <td className={colClass}>{fmtBrl(totais.custoServidor)}</td>
+                <td className={colClass}>{fmtBrl(totais.outrosCustos)}</td>
+                <td className={clsx(colClass, 'text-red-400')}>{fmtBrl(totais.totalCusto)}</td>
+                <td className={clsx(colClass, totais.liquido >= 0 ? 'text-green-400' : 'text-red-400')}>
+                  {fmtBrl(totais.liquido)}
+                </td>
+                <td className={clsx(colClass, totais.margem >= 0 ? 'text-green-400' : 'text-red-400')}>
+                  {totais.margem.toFixed(1)}%
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   )
 }
@@ -357,6 +508,7 @@ export default function ReportsPage() {
   const renderTab = () => {
     switch (tab) {
       case 'saas': return <SaasReport />
+      case 'receitas': return <ReceitasCustosReport />
       case 'abc': return <AbcReport />
       case 'profitability': return <ProfitabilityReport />
       case 'cancellations': return <CancellationsReport />

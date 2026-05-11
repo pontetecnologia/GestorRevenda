@@ -238,7 +238,7 @@ function ServerRow({
         <td>{server.vcpu}</td>
         <td>{server.storageGb} GB</td>
         <td><Currency value={Number(server.monthlyCost)} /></td>
-        <td><Currency value={Number(server.monthlyRevenue)} colored /></td>
+        <td><Currency value={Number(server.receitaReal ?? server.monthlyRevenue)} colored /></td>
         <td>
           <button
             className="flex items-center gap-1.5 text-slate-300 hover:text-blue-300 transition-colors"
@@ -407,7 +407,7 @@ export default function ServersPage() {
                   <th>vCPU</th>
                   <th>Armazenamento</th>
                   <th>Custo</th>
-                  <th>Receita</th>
+                  <th>Receita (contratos)</th>
                   <th>Contratos</th>
                   <th>Status</th>
                   {can(['MANAGER', 'ADMIN']) && <th>Ações</th>}
@@ -473,10 +473,8 @@ export default function ServersPage() {
             <input type="number" step="0.01" className="input" value={form.monthlyCost}
               onChange={e => setForm(p => ({ ...p, monthlyCost: Number(e.target.value) }))} />
           </div>
-          <div className="form-group">
-            <label className="label">Receita Mensal (R$)</label>
-            <input type="number" step="0.01" className="input" value={form.monthlyRevenue}
-              onChange={e => setForm(p => ({ ...p, monthlyRevenue: Number(e.target.value) }))} />
+          <div className="form-group col-span-2 text-xs text-slate-500 bg-slate-800/50 rounded-lg px-3 py-2">
+            💡 A receita do servidor é calculada automaticamente a partir da soma de <strong className="text-slate-300">Valor Venda Servidor</strong> dos contratos vinculados.
           </div>
           <div className="form-group">
             <label className="label">Status</label>

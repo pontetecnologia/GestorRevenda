@@ -1,11 +1,14 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { useMutation } from '@tanstack/react-query'
 import {
   LayoutDashboard, FileText, Server, BarChart3,
   Settings, LogOut, Menu, X, ChevronLeft, ChevronRight,
   Building2, KeyRound, Check,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
+import api from '../../services/api'
+import toast from 'react-hot-toast'
 import clsx from 'clsx'
 
 const ALL_NAV_ITEMS = [
@@ -130,6 +133,72 @@ function SenhaTecnicaButton({ collapsed }: { collapsed: boolean }) {
   )
 }
 
+// ─── Modal de Alteração de Senha ─────────────────────────────────────────────
+function ChangePasswordModal({ open, onClose, userId }: { open: boolean; onClose: () => void; userId: string }) {
+  const [form, setForm] = useState({ newPassword: '', confirm: '' })
+  const [error, setError] = useState('')
+
+  const mutation = useMutation({
+    mutationFn: () => api.patch(`/users/${userId}/reset-password`, { newPassword: form.newPassword }),
+    onSuccess: () => {
+      onClose()
+      setForm({ newPassword: '', confirm: '' })
+      toast.success('Senha alterada com sucesso!')
+    },
+    onError: () => toast.error('Erro ao alterar senha'),
+  })
+
+  const handleSubmit = () => {
+    if (form.newPassword.length < 6) { setError('Mínimo de 6 caracteres'); return }
+    if (form.newPassword !== form.confirm) { setError('As senhas não coincidem'); return }
+    setError('')
+    mutation.mutate()
+  }
+
+  return (
+    <div className={clsx('fixed inset-0 z-50 flex items-center justify-center p-4', !open && 'hidden')}>
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+      <div className="relative bg-slate-900 border border-slate-700 rounded-xl shadow-2xl w-full max-w-sm animate-fade-in">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700">
+          <h2 className="font-semibold text-slate-100">Alterar Senha</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-100">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="form-group">
+            <label className="label">Nova Senha</label>
+            <input
+              type="password"
+              className="input"
+              placeholder="Mínimo 6 caracteres"
+              value={form.newPassword}
+              onChange={e => setForm(p => ({ ...p, newPassword: e.target.value }))}
+            />
+          </div>
+          <div className="form-group">
+            <label className="label">Confirmar Nova Senha</label>
+            <input
+              type="password"
+              className="input"
+              placeholder="Repita a senha"
+              value={form.confirm}
+              onChange={e => setForm(p => ({ ...p, confirm: e.target.value }))}
+            />
+          </div>
+          {error && <p className="text-xs text-red-400">{error}</p>}
+          <div className="flex gap-3 justify-end pt-1">
+            <button className="btn-ghost" onClick={onClose}>Cancelar</button>
+            <button className="btn-primary" onClick={handleSubmit} disabled={mutation.isPending}>
+              {mutation.isPending ? 'Salvando...' : 'Alterar Senha'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Layout principal ─────────────────────────────────────────────────────────
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -147,10 +216,13 @@ export default function Layout() {
     item.roles.includes(user?.role || 'SUPPORT')
   )
 
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false)
+
   const isSupport = user?.role === 'SUPPORT'
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-950">
+    <>
+      <div className="flex h-screen overflow-hidden bg-slate-950">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
@@ -174,8 +246,8 @@ export default function Layout() {
           </div>
           {!collapsed && (
             <div>
-              <span className="font-bold text-slate-100 text-sm">RevendaHub</span>
-              <p className="text-xs text-slate-500">Gestão SaaS</p>
+              <span className="font-bold text-slate-100 text-sm">Ponte Tecnologia</span>
+              <p className="text-xs text-slate-500">Gestão de Contratos</p>
             </div>
           )}
           <button
@@ -213,12 +285,23 @@ export default function Layout() {
         <div className="border-t border-slate-700/50 p-3 space-y-1">
           {/* Nome e perfil */}
           {!collapsed && (
-            <div className="px-2 py-2 border-b border-slate-800 mb-1">
-              <p className="text-sm font-medium text-slate-200 truncate">{user?.name}</p>
-              <span className={clsx('badge mt-1', roleBadgeClass[user?.role || 'SUPPORT'])}>
-                {roleLabels[user?.role || 'SUPPORT']}
-              </span>
-            </div>
+            <button
+              onClick={() => setChangePasswordOpen(true)}
+              className="w-full px-2 py-2 border-b border-slate-800 mb-1 text-left hover:bg-slate-800 rounded-lg transition-colors group"
+              title="Clique para alterar sua senha"
+            >
+              <p className="text-sm font-medium text-slate-200 truncate group-hover:text-blue-300 transition-colors">
+                {user?.name}
+              </p>
+              <div className="flex items-center justify-between mt-0.5">
+                <span className={clsx('badge', roleBadgeClass[user?.role || 'SUPPORT'])}>
+                  {roleLabels[user?.role || 'SUPPORT']}
+                </span>
+                <span className="text-xs text-slate-600 group-hover:text-slate-400 transition-colors">
+                  alterar senha
+                </span>
+              </div>
+            </button>
           )}
 
           {/* Senha técnica — todos os perfis */}
@@ -254,7 +337,7 @@ export default function Layout() {
           >
             <Menu size={20} />
           </button>
-          <span className="font-semibold text-slate-100">RevendaHub</span>
+          <span className="font-semibold text-slate-100">Ponte Tecnologia</span>
         </header>
 
         {/* Page content */}
@@ -263,5 +346,15 @@ export default function Layout() {
         </main>
       </div>
     </div>
+
+      {/* Modal alterar senha */}
+      {user && (
+        <ChangePasswordModal
+          open={changePasswordOpen}
+          onClose={() => setChangePasswordOpen(false)}
+          userId={user.id}
+        />
+      )}
+    </>
   )
 }

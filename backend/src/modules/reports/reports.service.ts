@@ -274,4 +274,79 @@ export class ReportsService {
       })),
     };
   }
+
+  async getReceitasCustosPorTipo() {
+    const contracts = await this.prisma.contract.findMany({
+      where: { idStatus: { in: ACTIVE_STATUS_IDS } },
+      include: { financial: true },
+      orderBy: { clienteFinal: 'asc' },
+    });
+
+    const linhas = contracts.map(c => {
+      const f = c.financial as any;
+      const valorVenda         = round(Number(f?.valorVenda          ?? 0));
+      const valorTef           = round(Number(f?.valorVendaTef        ?? 0));
+      const valorServidor      = round(Number(f?.valorVendaServidor   ?? 0));
+      const outrasReceitas     = round(Number(f?.outrasReceitas       ?? 0));
+      const custoIntelidata    = round(Number(f?.valorCustoIntelidata ?? c.valortotal));
+      const custoTef           = round(Number(f?.custoTef             ?? 0));
+      const custoServidor      = round(Number(f?.custoServidor        ?? 0));
+      const outrosCustos       = round(Number(f?.outrosCustos         ?? 0));
+
+      const totalReceita = round(valorVenda + valorTef + valorServidor + outrasReceitas);
+      const totalCusto   = round(custoIntelidata + custoTef + custoServidor + outrosCustos);
+      const liquido      = round(totalReceita - totalCusto);
+      const margem       = totalReceita > 0 ? round((liquido / totalReceita) * 100) : 0;
+
+      return {
+        id: c.id,
+        cliente: c.clienteFinal,
+        cpfCnpj: c.cpfCnpj,
+        // Receitas
+        valorVenda,
+        valorTef,
+        valorServidor,
+        outrasReceitas,
+        totalReceita,
+        // Custos
+        custoIntelidata,
+        custoTef,
+        custoServidor,
+        outrosCustos,
+        totalCusto,
+        // Resultado
+        liquido,
+        margem,
+      };
+    });
+
+    // Totalizadores
+    const totais = linhas.reduce((acc, l) => ({
+      valorVenda:      round(acc.valorVenda      + l.valorVenda),
+      valorTef:        round(acc.valorTef        + l.valorTef),
+      valorServidor:   round(acc.valorServidor   + l.valorServidor),
+      outrasReceitas:  round(acc.outrasReceitas  + l.outrasReceitas),
+      totalReceita:    round(acc.totalReceita    + l.totalReceita),
+      custoIntelidata: round(acc.custoIntelidata + l.custoIntelidata),
+      custoTef:        round(acc.custoTef        + l.custoTef),
+      custoServidor:   round(acc.custoServidor   + l.custoServidor),
+      outrosCustos:    round(acc.outrosCustos    + l.outrosCustos),
+      totalCusto:      round(acc.totalCusto      + l.totalCusto),
+      liquido:         round(acc.liquido         + l.liquido),
+    }), {
+      valorVenda: 0, valorTef: 0, valorServidor: 0, outrasReceitas: 0, totalReceita: 0,
+      custoIntelidata: 0, custoTef: 0, custoServidor: 0, outrosCustos: 0, totalCusto: 0,
+      liquido: 0,
+    });
+
+    const margemGeral = totais.totalReceita > 0
+      ? round((totais.liquido / totais.totalReceita) * 100)
+      : 0;
+
+    return {
+      linhas,
+      totais: { ...totais, margem: margemGeral },
+      totalContratos: linhas.length,
+    };
+  }
 }
