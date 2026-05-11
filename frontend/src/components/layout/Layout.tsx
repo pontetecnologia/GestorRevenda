@@ -246,7 +246,7 @@ export default function Layout() {
           </div>
           {!collapsed && (
             <div>
-              <span className="font-bold text-slate-100 text-sm">Ponte Tecnologia</span>
+              <span className="font-bold text-slate-100 text-sm">RevendaHub</span>
               <p className="text-xs text-slate-500">Gestão SaaS</p>
             </div>
           )}
@@ -337,7 +337,7 @@ export default function Layout() {
           >
             <Menu size={20} />
           </button>
-          <span className="font-semibold text-slate-100">Ponte Tecnologia</span>
+          <span className="font-semibold text-slate-100">RevendaHub</span>
         </header>
 
         {/* Page content */}
