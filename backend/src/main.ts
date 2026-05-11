@@ -37,8 +37,8 @@ async function bootstrap() {
   // Swagger (desabilitar em produção se necessário)
   if (process.env.NODE_ENV !== 'production') {
     const config = new DocumentBuilder()
-      .setTitle('API - Gestão de Contratos')
-      .setDescription('API do sistema de Gestão de Contratos')
+      .setTitle('RevendaHub API')
+      .setDescription('API do sistema de gestão de revenda SaaS')
       .setVersion('1.0')
       .addBearerAuth()
       .build();
@@ -49,7 +49,7 @@ async function bootstrap() {
 
   const port = process.env.API_PORT || 3333;
   await app.listen(port, '0.0.0.0');
-  logger.log(`🚀 Backend rodando na porta ${port}`);
+  logger.log(`🚀 RevendaHub Backend rodando na porta ${port}`);
 }
 
 bootstrap();

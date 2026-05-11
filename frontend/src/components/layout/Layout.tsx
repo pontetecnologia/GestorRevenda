@@ -247,7 +247,7 @@ export default function Layout() {
           {!collapsed && (
             <div>
               <span className="font-bold text-slate-100 text-sm">Ponte Tecnologia</span>
-              <p className="text-xs text-slate-500">Gestão de Contratos</p>
+              <p className="text-xs text-slate-500">Gestão SaaS</p>
             </div>
           )}
           <button
