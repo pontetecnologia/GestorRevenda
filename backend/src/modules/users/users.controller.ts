@@ -1,6 +1,6 @@
 import {
   Controller, Get, Post, Put, Patch, Body, Param,
-  UseGuards, Request, HttpCode,
+  UseGuards, Request, HttpCode, ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { IsEmail, IsString, MinLength, IsIn, IsOptional } from 'class-validator';
@@ -70,9 +70,17 @@ export class UsersController {
   }
 
   @Patch(':id/reset-password')
-  @Roles('ADMIN')
   @HttpCode(200)
-  resetPassword(@Param('id') id: string, @Body() dto: ResetPasswordDto) {
+  resetPassword(
+    @Param('id') id: string,
+    @Body() dto: ResetPasswordDto,
+    @Request() req,
+  ) {
+    // ADMIN pode alterar senha de qualquer usuário
+    // Outros perfis só podem alterar a própria senha
+    if (req.user.role !== 'ADMIN' && req.user.id !== id) {
+      throw new ForbiddenException('Você só pode alterar a sua própria senha');
+    }
     return this.usersService.resetPassword(id, dto.newPassword);
   }
 }

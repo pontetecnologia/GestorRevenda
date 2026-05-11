@@ -110,19 +110,19 @@ export class ContractsController {
   }
 
   @Post(':id/access-data')
-  @Roles('MANAGER', 'ADMIN')
+  @Roles('SUPPORT', 'MANAGER', 'ADMIN')
   createAccessData(@Param('id') id: string, @Body() data: any) {
     return this.contractsService.createAccessData(id, data);
   }
 
   @Put(':id/access-data/:dataId')
-  @Roles('MANAGER', 'ADMIN')
+  @Roles('SUPPORT', 'MANAGER', 'ADMIN')
   updateAccessData(@Param('dataId') dataId: string, @Body() data: any) {
     return this.contractsService.updateAccessData(dataId, data);
   }
 
   @Delete(':id/access-data/:dataId')
-  @Roles('MANAGER', 'ADMIN')
+  @Roles('SUPPORT', 'MANAGER', 'ADMIN')
   deleteAccessData(@Param('dataId') dataId: string) {
     return this.contractsService.deleteAccessData(dataId);
   }
